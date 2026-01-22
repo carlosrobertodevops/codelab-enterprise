@@ -12,11 +12,11 @@ This repository is organized as:
 
 1. Copy env:
    ```bash
-   cp .env.example .env
+   cp env.example .env
    ```
-2. Start:
+2. Start Local in Dev:
    ```bash
-   docker compose --profile dev up -d --build
+   docker compose -f docker-compose.dev.yaml up -d
    ```
 3. Open:
    - Web: http://localhost
