@@ -1,0 +1,231 @@
+services:
+  # -----------------------------
+  # Database (Postgres) - PROD
+  # -----------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: codelab_postgres
+    env_file: .env.prod
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-codelab}
+      POSTGRES_USER: ${POSTGRES_USER:-codelab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codelab}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-codelab} -d ${POSTGRES_DB:-codelab}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # PgBouncer (DB Connection Pool) - PROD
+  # -----------------------------
+  pgbouncer:
+    image: edoburu/pgbouncer:1.22.0
+    container_name: codelab_pgbouncer
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER:-codelab}
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-codelab}
+      DB_NAME: ${POSTGRES_DB:-codelab}
+
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 5000
+      DEFAULT_POOL_SIZE: 80
+      RESERVE_POOL_SIZE: 40
+      SERVER_RESET_QUERY: DISCARD ALL
+
+      ADMIN_USERS: ${POSTGRES_USER:-codelab}
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # pgAdmin (DB UI) - PROD
+  # -----------------------------
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: codelab_pgadmin
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@codelab.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-change-me}
+      PGADMIN_CONFIG_SERVER_MODE: "True"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5050:80"
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # Redis (Cache + BullMQ) - PROD
+  # -----------------------------
+  redis:
+    image: redis:7-alpine
+    container_name: codelab_redis
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # API (NestJS) - PROD
+  # -----------------------------
+  api:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    container_name: codelab_api
+    depends_on:
+      pgbouncer:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      API_PORT: 3001
+
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+
+      CLERK_ISSUER: ${CLERK_ISSUER}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+
+      ASAAS_API_URL: ${ASAAS_API_URL}
+      ASAAS_API_KEY: ${ASAAS_API_KEY}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
+
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
+
+      WEB_ORIGIN: ${WEB_ORIGIN}
+    expose:
+      - "3001"
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # API Worker (BullMQ) - PROD
+  # -----------------------------
+  api-worker:
+    build:
+      context: .
+      dockerfile: src/api/Dockerfile
+    container_name: codelab_api_worker
+    depends_on:
+      api:
+        condition: service_started
+      redis:
+        condition: service_healthy
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: ${DATABASE_URL}
+      REDIS_URL: ${REDIS_URL}
+
+      CLERK_ISSUER: ${CLERK_ISSUER}
+      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
+      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
+
+      ASAAS_API_URL: ${ASAAS_API_URL}
+      ASAAS_API_KEY: ${ASAAS_API_KEY}
+      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
+
+      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
+      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
+      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
+      R2_BUCKET: ${R2_BUCKET}
+      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
+    command: ["node", "dist/worker.js"]
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # Web (Next.js 16) - PROD
+  # -----------------------------
+  app:
+    build:
+      context: .
+      dockerfile: src/app/Dockerfile
+    container_name: codelab_app
+    depends_on:
+      api:
+        condition: service_started
+    env_file: .env.prod
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
+      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
+      NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
+      NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
+
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
+      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://api:3001}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://cursos.crphd.online}
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - app_net
+
+  # -----------------------------
+  # Nginx (Reverse Proxy) - PROD
+  # -----------------------------
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: codelab_nginx
+    depends_on:
+      app:
+        condition: service_started
+      api:
+        condition: service_started
+    ports:
+      - "80:80"
+    volumes:
+      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    restart: unless-stopped
+    networks:
+      - app_net
+
+networks:
+  app_net:
+    driver: bridge
+
+volumes:
+  pg_data:
+  redis_data:
+  pgadmin_data:
