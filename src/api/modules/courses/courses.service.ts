@@ -37,9 +37,9 @@ export class CoursesService {
           title: true,
           slug: true,
           description: true,
-          imageUrl: true,
           status: true,
-          level: true,
+          thumbnail: true,
+          difficulty: true,
           createdAt: true,
         },
       }),
@@ -60,9 +60,9 @@ export class CoursesService {
       include: {
         tags: true,
         modules: {
-          orderBy: { position: 'asc' },
+          orderBy: { order: 'asc' },
           include: {
-            lessons: { orderBy: { position: 'asc' } },
+            lessons: { orderBy: { order: 'asc' } },
           },
         },
       },

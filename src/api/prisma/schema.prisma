@@ -118,49 +118,38 @@ model CourseLesson {
   @@map("course_lessons")
 }
 
-model CoursePurchase {
-  id String @id @default(cuid())
-
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  courseId String
-  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
-
-  asaasPaymentId String? @unique
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([userId, courseId])
-  @@map("course_purchases")
-}
-
 model CompletedLesson {
   id String @id @default(cuid())
-
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   lessonId String
   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  completedAt DateTime @default(now())
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
 
-  @@unique([userId, lessonId])
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
   @@map("completed_lessons")
 }
 
 model LessonComment {
   id String @id @default(cuid())
 
-  userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   lessonId String
   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
-  text String
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  content String
+
+  parentId String?
+  parent   LessonComment?  @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies  LessonComment[] @relation("CommentReplies")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -168,56 +157,35 @@ model LessonComment {
   @@map("lesson_comments")
 }
 
-enum NotificationType {
-  INFO
-  WARNING
-  SUCCESS
-  ERROR
+model CoursePurchase {
+  id String @id @default(cuid())
+
+  courseId String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("course_purchases")
 }
 
 model Notification {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  type    NotificationType @default(INFO)
   title   String
-  message String
-  readAt  DateTime?
+  content String
+  link    String?
+
+  readAt DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("notifications")
-}
-
-model Upload {
-  id String @id @default(cuid())
-
-  userId String?
-  courseId String?
-  lessonId String?
-
-  key         String
-  url         String
-  mimeType    String
-  sizeInBytes Int
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@map("uploads")
-}
-
-model WebhookEvent {
-  id String @id @default(cuid())
-
-  provider String
-  event    String
-  payload  Json
-
-  receivedAt DateTime @default(now())
-
-  @@map("webhook_events")
 }
