@@ -10,10 +10,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 FROM base AS deps
 RUN corepack enable
 
-# Monorepo: yarn.lock está na raiz do repositório
-COPY yarn.lock ./yarn.lock
-COPY src/app/package.json ./package.json
-
+# Copia manifests para maximizar cache
+COPY src/app/package.json src/app/yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 # -----------------------------
@@ -23,10 +21,6 @@ FROM base AS builder
 RUN corepack enable
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/yarn.lock ./yarn.lock
-COPY --from=deps /app/package.json ./package.json
-
-# Copia o código do Next
 COPY src/app ./
 
 RUN yarn build

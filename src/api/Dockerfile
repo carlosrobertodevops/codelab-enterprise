@@ -9,10 +9,8 @@ WORKDIR /app
 FROM base AS deps
 RUN corepack enable
 
-# Monorepo: yarn.lock está na raiz do repositório
-COPY yarn.lock ./yarn.lock
-COPY src/api/package.json ./package.json
-
+# Copia manifests para maximizar cache
+COPY src/api/package.json src/api/yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 # -----------------------------
@@ -22,14 +20,10 @@ FROM base AS builder
 RUN corepack enable
 
 COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/yarn.lock ./yarn.lock
-COPY --from=deps /app/package.json ./package.json
-
-# Copia o código da API
 COPY src/api ./
 
-# Prisma generate (ajuste para o script real do seu package.json)
-# Se você não tiver "prisma:generate", substitua por: RUN yarn prisma generate
+# Prisma client (ajuste conforme seu package.json)
+# Se você NÃO tiver "prisma:generate", troque por: RUN yarn prisma generate
 RUN yarn prisma:generate
 
 # Build Nest
