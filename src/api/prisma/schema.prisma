@@ -221,6 +221,7 @@
 
 //   @@map("webhook_events")
 // }
+
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearchPostgres"]
