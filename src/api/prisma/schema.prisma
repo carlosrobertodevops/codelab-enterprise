@@ -1,3 +1,226 @@
+// generator client {
+//   provider        = "prisma-client-js"
+//   previewFeatures = ["fullTextSearchPostgres"]
+// }
+
+// datasource db {
+//   provider = "postgresql"
+//   url      = env("DATABASE_URL")
+// }
+
+// model User {
+//   id          String  @id @default(cuid())
+//   firstName   String
+//   lastName    String?
+//   email       String  @unique
+//   clerkUserId String  @unique
+//   imageUrl    String?
+//   asaasId     String?
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   completedLessons CompletedLesson[]
+//   lessonComments   LessonComment[]
+//   courses          CoursePurchase[]
+//   notifications    Notification[]
+
+//   @@map("users")
+// }
+
+// model CourseTag {
+//   id   String @id @default(cuid())
+//   name String @unique
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   course   Course? @relation(fields: [courseId], references: [id])
+//   courseId String?
+
+//   @@map("course_tags")
+// }
+
+// enum CourseStatus {
+//   DRAFT
+//   PUBLISHED
+// }
+
+// enum CourseDifficulty {
+//   EASY
+//   MEDIUM
+//   HARD
+// }
+
+// model Course {
+//   id String @id @default(cuid())
+
+//   status CourseStatus @default(DRAFT)
+
+//   title            String
+//   slug             String           @unique
+//   description      String
+//   shortDescription String?
+//   thumbnail        String
+//   price            Float
+//   discountPrice    Float?
+//   tags             CourseTag[]
+//   difficulty       CourseDifficulty @default(EASY)
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   modules          CourseModule[]
+//   completedLessons CompletedLesson[]
+//   purchases        CoursePurchase[]
+
+//   @@map("courses")
+// }
+
+// model CourseModule {
+//   id String @id @default(cuid())
+
+//   title       String
+//   description String
+
+//   courseId String
+//   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+//   order Int
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   lessons CourseLesson[]
+
+//   @@map("course_modules")
+// }
+
+// model CourseLesson {
+//   id String @id @default(cuid())
+
+//   title        String
+//   description  String
+//   videoId      String
+//   durationInMs Int
+
+//   order Int
+
+//   moduleId String
+//   module   CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   completedLessons CompletedLesson[]
+//   comments         LessonComment[]
+
+//   @@map("course_lessons")
+// }
+
+// model CoursePurchase {
+//   id String @id @default(cuid())
+
+//   userId String
+//   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   courseId String
+//   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+//   asaasPaymentId String? @unique
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@unique([userId, courseId])
+//   @@map("course_purchases")
+// }
+
+// model CompletedLesson {
+//   id String @id @default(cuid())
+
+//   userId String
+//   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   lessonId String
+//   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+//   completedAt DateTime @default(now())
+
+//   @@unique([userId, lessonId])
+//   @@map("completed_lessons")
+// }
+
+// model LessonComment {
+//   id String @id @default(cuid())
+
+//   userId String
+//   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   lessonId String
+//   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+//   text String
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@map("lesson_comments")
+// }
+
+// enum NotificationType {
+//   INFO
+//   WARNING
+//   SUCCESS
+//   ERROR
+// }
+
+// model Notification {
+//   id String @id @default(cuid())
+
+//   userId String
+//   user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+//   type    NotificationType @default(INFO)
+//   title   String
+//   message String
+//   readAt  DateTime?
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@map("notifications")
+// }
+
+// model Upload {
+//   id String @id @default(cuid())
+
+//   userId String?
+//   courseId String?
+//   lessonId String?
+
+//   key         String
+//   url         String
+//   mimeType    String
+//   sizeInBytes Int
+
+//   createdAt DateTime @default(now())
+//   updatedAt DateTime @updatedAt
+
+//   @@map("uploads")
+// }
+
+// model WebhookEvent {
+//   id String @id @default(cuid())
+
+//   provider String
+//   event    String
+//   payload  Json
+
+//   receivedAt DateTime @default(now())
+
+//   @@map("webhook_events")
+// }
 generator client {
   provider        = "prisma-client-js"
   previewFeatures = ["fullTextSearchPostgres"]
@@ -70,9 +293,8 @@ model Course {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  modules          CourseModule[]
-  completedLessons CompletedLesson[]
-  purchases        CoursePurchase[]
+  modules   CourseModule[]
+  purchases CoursePurchase[]
 
   @@map("courses")
 }
@@ -122,7 +344,7 @@ model CoursePurchase {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   courseId String
   course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
@@ -140,7 +362,7 @@ model CompletedLesson {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   lessonId String
   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
@@ -155,7 +377,7 @@ model LessonComment {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   lessonId String
   lesson   CourseLesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
@@ -179,7 +401,7 @@ model Notification {
   id String @id @default(cuid())
 
   userId String
-  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   type    NotificationType @default(INFO)
   title   String
@@ -195,7 +417,7 @@ model Notification {
 model Upload {
   id String @id @default(cuid())
 
-  userId String?
+  userId   String?
   courseId String?
   lessonId String?
 
