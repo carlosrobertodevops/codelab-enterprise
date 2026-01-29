@@ -1,59 +1,137 @@
+// "use server";
+
+// import { checkRole } from "@/lib/clerk";
+// import { prisma } from "@/lib/prisma";
+// import { auth } from "@clerk/nextjs/server";
+
+// type FilledUser = {
+//   user: NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
+//   clerkUserId: string;
+//   userId: string;
+// };
+
+// type EmptyUser = {
+//   user: null;
+//   clerkUserId: null;
+//   userId: null;
+// };
+
+// export function getUser(throwError?: true): Promise<FilledUser>;
+// export function getUser(throwError: false): Promise<FilledUser | EmptyUser>;
+
+// export async function getUser(
+//   throwError = true
+// ): Promise<FilledUser | EmptyUser> {
+//   const { userId } = await auth();
+
+//   const emptyUser: EmptyUser = { user: null, clerkUserId: null, userId: null };
+
+//   if (!userId) {
+//     if (!throwError) return emptyUser;
+
+//     throw new Error("Unauthorized");
+//   }
+
+//   const user = await prisma.user.findUnique({
+//     where: {
+//       clerkUserId: userId,
+//     },
+//   });
+
+//   if (!user) {
+//     if (!throwError) return emptyUser;
+
+//     throw new Error("User not found");
+//   }
+
+//   return {
+//     user,
+//     clerkUserId: userId,
+//     userId: user.id,
+//   };
+// }
+
+// export const getAdminUsers = async (): Promise<AdminUser[]> => {
+//   const isAdmin = await checkRole("admin");
+
+//   if (!isAdmin) throw new Error("Unauthorized");
+
+//   const users = await prisma.user.findMany({
+//     include: {
+//       _count: {
+//         select: {
+//           courses: true,
+//           completedLessons: true,
+//         },
+//       },
+//     },
+//     orderBy: {
+//       createdAt: "desc",
+//     },
+//   });
+
+//   return users.map(({ _count, ...user }) => ({
+//     ...user,
+//     purchasedCourses: _count.courses,
+//     completedLessons: _count.completedLessons,
+//   }));
+// };
+
 "use server";
 
-import { checkRole } from "@/lib/clerk";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@clerk/nextjs/server";
+import { checkRole } from "@/lib/clerk";
 
-type FilledUser = {
-  user: NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
+type PrismaUser = NonNullable<Awaited<ReturnType<typeof prisma.user.findUnique>>>;
+
+export type FilledUser = {
+  user: PrismaUser;
   clerkUserId: string;
   userId: string;
 };
 
-type EmptyUser = {
+export type EmptyUser = {
   user: null;
   clerkUserId: null;
   userId: null;
 };
 
-export function getUser(throwError?: true): Promise<FilledUser>;
-export function getUser(throwError: false): Promise<FilledUser | EmptyUser>;
-
 export async function getUser(
-  throwError = true
+  throwError: boolean = true
 ): Promise<FilledUser | EmptyUser> {
-  const { userId } = await auth();
+  const { userId: clerkUserId } = await auth();
 
-  const emptyUser: EmptyUser = { user: null, clerkUserId: null, userId: null };
+  const empty: EmptyUser = { user: null, clerkUserId: null, userId: null };
 
-  if (!userId) {
-    if (!throwError) return emptyUser;
-
+  if (!clerkUserId) {
+    if (!throwError) return empty;
     throw new Error("Unauthorized");
   }
 
   const user = await prisma.user.findUnique({
-    where: {
-      clerkUserId: userId,
-    },
+    where: { clerkUserId },
   });
 
   if (!user) {
-    if (!throwError) return emptyUser;
-
+    if (!throwError) return empty;
     throw new Error("User not found");
   }
 
   return {
     user,
-    clerkUserId: userId,
+    clerkUserId,
     userId: user.id,
   };
 }
 
-export const getAdminUsers = async (): Promise<AdminUser[]> => {
-  const isAdmin = await checkRole("admin");
+type AdminUser = PrismaUser & {
+  purchasedCourses: number;
+  completedLessons: number;
+};
 
+export async function getAdminUsers(): Promise<AdminUser[]> {
+  const isAdmin = await checkRole("admin");
   if (!isAdmin) throw new Error("Unauthorized");
 
   const users = await prisma.user.findMany({
@@ -65,14 +143,12 @@ export const getAdminUsers = async (): Promise<AdminUser[]> => {
         },
       },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
-  return users.map(({ _count, ...user }) => ({
-    ...user,
+  return users.map(({ _count, ...u }) => ({
+    ...u,
     purchasedCourses: _count.courses,
     completedLessons: _count.completedLessons,
   }));
-};
+}

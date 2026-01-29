@@ -39,15 +39,48 @@
 // };
 
 // export default nextConfig;
+import type { NextConfig } from "next";
 
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
+const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
+
+  images: {
+    remotePatterns: [
+      { hostname: "pub-c30627bea381491ab86102a1a23df632.r2.dev" },
+      { hostname: "pub-8fa7f812290f42b390f442c85bf3757a.r2.dev" },
+    ],
+  },
+
+  turbopack: {
+    rules: {
+      "*.svg": {
+        loaders: ["@svgr/webpack"],
+        as: "*.js",
+      },
+    },
+  },
+
+  webpack(config) {
+    config.module.rules.push({
+      test: /\.svg$/,
+      use: [
+        {
+          loader: "@svgr/webpack",
+          options: { icon: true },
+        },
+      ],
+    });
+
+    return config;
+  },
+
+  experimental: {
+    serverActions: {
+      bodySizeLimit: "10mb",
+    },
+  },
 };
 
-module.exports = nextConfig;
+export default nextConfig;

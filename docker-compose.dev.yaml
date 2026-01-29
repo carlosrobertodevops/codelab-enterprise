@@ -1,441 +1,188 @@
-# services:
-#   # -----------------------------
-#   # Database (Postgres)
-#   # -----------------------------
-#   postgres:
-#     image: postgres:16-alpine
-#     container_name: codelab_postgres
-#     env_file: .env.dev
-#     environment:
-#       POSTGRES_DB: ${POSTGRES_DB:-codelab}
-#       POSTGRES_USER: ${POSTGRES_USER:-codelab}
-#       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codelab}
-#     volumes:
-#       - pg_data:/var/lib/postgresql/data
-#     healthcheck:
-#       test:
-#         [
-#           "CMD-SHELL",
-#           "pg_isready -U ${POSTGRES_USER:-codelab} -d ${POSTGRES_DB:-codelab}",
-#         ]
-#       interval: 5s
-#       timeout: 5s
-#       retries: 20
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # PgBouncer (DB Connection Pool)
-#   # -----------------------------
-#   pgbouncer:
-#     image: edoburu/pgbouncer:latest
-#     container_name: codelab_pgbouncer
-#     depends_on:
-#       postgres:
-#         condition: service_healthy
-#     env_file: .env.dev
-#     environment:
-#       DB_HOST: postgres
-#       DB_PORT: 5432
-#       DB_USER: ${POSTGRES_USER:-codelab}
-#       DB_PASSWORD: ${POSTGRES_PASSWORD:-codelab}
-#       DB_NAME: ${POSTGRES_DB:-codelab}
-
-#       # Pooling
-#       POOL_MODE: transaction
-#       MAX_CLIENT_CONN: 2000
-#       DEFAULT_POOL_SIZE: 50
-#       RESERVE_POOL_SIZE: 20
-#       SERVER_RESET_QUERY: DISCARD ALL
-
-#       # Admin
-#       ADMIN_USERS: ${POSTGRES_USER:-codelab}
-#     ports:
-#       - "6432:6432"
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # pgAdmin (DB UI)
-#   # -----------------------------
-#   pgadmin:
-#     image: dpage/pgadmin4:8
-#     container_name: codelab_pgadmin
-#     depends_on:
-#       postgres:
-#         condition: service_healthy
-#     env_file: .env.dev
-#     environment:
-#       PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@codelab.local}
-#       PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
-#       PGADMIN_CONFIG_SERVER_MODE: "True"
-#     volumes:
-#       - pgadmin_data:/var/lib/pgadmin
-#     ports:
-#       - "5050:80"
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # Redis (Cache + BullMQ)
-#   # -----------------------------
-#   redis:
-#     image: redis:7-alpine
-#     container_name: codelab_redis
-#     command: ["redis-server", "--appendonly", "yes"]
-#     volumes:
-#       - redis_data:/data
-#     healthcheck:
-#       test: ["CMD", "redis-cli", "ping"]
-#       interval: 5s
-#       timeout: 5s
-#       retries: 20
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # API (NestJS) - DEV
-#   # -----------------------------
-#   api:
-#     build:
-#       context: .
-#       dockerfile: src/api/Dockerfile
-#     container_name: codelab_api
-#     depends_on:
-#       pgbouncer:
-#         condition: service_started
-#       redis:
-#         condition: service_healthy
-#     env_file: .env.dev
-#     environment:
-#       NODE_ENV: development
-#       API_PORT: 3001
-#       DATABASE_URL: ${DATABASE_URL}
-#       REDIS_URL: ${REDIS_URL}
-
-#       CLERK_ISSUER: ${CLERK_ISSUER}
-#       CLERK_JWKS_URL: ${CLERK_JWKS_URL}
-#       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
-
-#       ASAAS_API_URL: ${ASAAS_API_URL}
-#       ASAAS_API_KEY: ${ASAAS_API_KEY}
-#       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
-
-#       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-#       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-#       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-#       R2_BUCKET: ${R2_BUCKET}
-#       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
-
-#       WEB_ORIGIN: ${WEB_ORIGIN}
-#     expose:
-#       - "3001"
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # API Worker (BullMQ) - DEV
-#   # -----------------------------
-#   api-worker:
-#     build:
-#       context: .
-#       dockerfile: src/api/Dockerfile
-#     container_name: codelab_api_worker
-#     depends_on:
-#       api:
-#         condition: service_started
-#       redis:
-#         condition: service_healthy
-#     env_file: .env.dev
-#     environment:
-#       NODE_ENV: development
-#       DATABASE_URL: ${DATABASE_URL}
-#       REDIS_URL: ${REDIS_URL}
-
-#       CLERK_ISSUER: ${CLERK_ISSUER}
-#       CLERK_JWKS_URL: ${CLERK_JWKS_URL}
-#       CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
-
-#       ASAAS_API_URL: ${ASAAS_API_URL}
-#       ASAAS_API_KEY: ${ASAAS_API_KEY}
-#       ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
-
-#       R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-#       R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-#       R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-#       R2_BUCKET: ${R2_BUCKET}
-#       R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
-#     command: ["node", "dist/worker.js"]
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # Web (Next.js 16) - DEV
-#   # -----------------------------
-#   app:
-#     build:
-#       context: .
-#       dockerfile: src/app/Dockerfile
-#     container_name: codelab_app
-#     depends_on:
-#       api:
-#         condition: service_started
-#     env_file: .env.dev
-#     environment:
-#       NODE_ENV: development
-#       NEXT_TELEMETRY_DISABLED: "1"
-
-#       NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-#       CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-#       NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
-#       NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
-
-#       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
-#       INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://api:3001}
-#       NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
-#     expose:
-#       - "3000"
-#     networks:
-#       - app_net
-
-#   # -----------------------------
-#   # Nginx (Reverse Proxy) - DEV
-#   # -----------------------------
-#   nginx:
-#     image: nginx:1.27-alpine
-#     container_name: codelab_nginx
-#     depends_on:
-#       app:
-#         condition: service_started
-#       api:
-#         condition: service_started
-#     ports:
-#       - "80:80"
-#     volumes:
-#       - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-#     networks:
-#       - app_net
-
-# networks:
-#   app_net:
-#     driver: bridge
-
-# volumes:
-#   pg_data:
-#   redis_data:
-#   pgadmin_data:
-
 services:
-  # -----------------------------
-  # Database (Postgres)
-  # -----------------------------
   postgres:
     image: postgres:16-alpine
     container_name: codelab_postgres
-    env_file: .env.dev
+    env_file:
+      - .env.dev
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-codelab}
-      POSTGRES_USER: ${POSTGRES_USER:-codelab}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-codelab}
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pg_data:/var/lib/postgresql/data
+    networks:
+      - app_net
     healthcheck:
       test:
         [
           "CMD-SHELL",
-          "pg_isready -U ${POSTGRES_USER:-codelab} -d ${POSTGRES_DB:-codelab}",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB} -h 127.0.0.1 -p 5432",
         ]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 20
-    networks:
-      - app_net
 
-  # -----------------------------
-  # PgBouncer (DB Connection Pool)
-  # -----------------------------
-  pgbouncer:
-    image: edoburu/pgbouncer:latest
-    container_name: codelab_pgbouncer
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file: .env.dev
-    # ✅ NÃO usar autogerador via env (ele está gerando ini inválido)
-    volumes:
-      - ./infra/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./infra/pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-    command: ["pgbouncer", "/etc/pgbouncer/pgbouncer.ini"]
-    ports:
-      - "6432:6432"
-    networks:
-      - app_net
-    restart: unless-stopped
-
-  # -----------------------------
-  # pgAdmin (DB UI)
-  # -----------------------------
-  pgadmin:
-    image: dpage/pgadmin4:8
-    container_name: codelab_pgadmin
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file: .env.dev
-    environment:
-      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL:-admin@codelab.local}
-      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD:-admin123}
-      PGADMIN_CONFIG_SERVER_MODE: "True"
-    volumes:
-      - pgadmin_data:/var/lib/pgadmin
-    ports:
-      - "5050:80"
-    networks:
-      - app_net
-
-  # -----------------------------
-  # Redis (Cache + BullMQ)
-  # -----------------------------
   redis:
     image: redis:7-alpine
     container_name: codelab_redis
-    command: ["redis-server", "--appendonly", "yes"]
     volumes:
       - redis_data:/data
+    networks:
+      - app_net
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
-      timeout: 5s
+      timeout: 3s
       retries: 20
+
+  pgadmin:
+    image: dpage/pgadmin4:8
+    container_name: codelab_pgadmin
+    env_file:
+      - .env.dev
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_DEFAULT_EMAIL}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_DEFAULT_PASSWORD}
+    ports:
+      - "${PGADMIN_PORT:-5050}:80"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_net
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: codelab_pgbouncer
+    env_file:
+      - .env.dev
+    environment:
+      # edoburu/pgbouncer usa essas variáveis:
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: ${POSTGRES_DB}
+
+      # pooling
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 2000
+      DEFAULT_POOL_SIZE: 50
+      RESERVE_POOL_SIZE: 20
+      IGNORE_STARTUP_PARAMETERS: extra_float_digits
+    ports:
+      - "6432:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
     networks:
       - app_net
 
-  # -----------------------------
-  # API (NestJS) - DEV
-  # -----------------------------
+  # Executa migrations SEM passar pelo PgBouncer
+  db-migrate:
+    build:
+      context: .
+      dockerfile: src/app/Dockerfile
+    image: codelab-enterprise-db-migrate:latest
+    container_name: codelab_db_migrate
+    env_file:
+      - .env.dev
+    environment:
+      # força migrations no Postgres direto
+      DATABASE_URL: ${MIGRATE_DATABASE_URL:-postgresql://codelab:codelab@postgres:5432/codelab?schema=public}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - app_net
+    # roda migrate e finaliza (one-shot)
+    command:
+      ["sh", "-lc", "npx prisma migrate deploy --schema=prisma/schema.prisma"]
+
   api:
     build:
       context: .
       dockerfile: src/api/Dockerfile
+    image: codelab-enterprise-api:latest
     container_name: codelab_api
+    env_file:
+      - .env.dev
     depends_on:
-      pgbouncer:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
-    env_file: .env.dev
-    environment:
-      NODE_ENV: development
-      API_PORT: 3001
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-
-      CLERK_ISSUER: ${CLERK_ISSUER}
-      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
-
-      ASAAS_API_URL: ${ASAAS_API_URL}
-      ASAAS_API_KEY: ${ASAAS_API_KEY}
-      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
-
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_BUCKET: ${R2_BUCKET}
-      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
-
-      WEB_ORIGIN: ${WEB_ORIGIN}
-    expose:
-      - "3001"
+      pgbouncer:
+        condition: service_started
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - app_net
+    expose:
+      - "3001"
 
-  # -----------------------------
-  # API Worker (BullMQ) - DEV
-  # -----------------------------
   api-worker:
     build:
       context: .
       dockerfile: src/api/Dockerfile
+    image: codelab-enterprise-api-worker:latest
     container_name: codelab_api_worker
+    env_file:
+      - .env.dev
     depends_on:
-      api:
-        condition: service_started
+      postgres:
+        condition: service_healthy
       redis:
         condition: service_healthy
-    env_file: .env.dev
-    environment:
-      NODE_ENV: development
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-
-      CLERK_ISSUER: ${CLERK_ISSUER}
-      CLERK_JWKS_URL: ${CLERK_JWKS_URL}
-      CLERK_WEBHOOK_SECRET: ${CLERK_WEBHOOK_SECRET}
-
-      ASAAS_API_URL: ${ASAAS_API_URL}
-      ASAAS_API_KEY: ${ASAAS_API_KEY}
-      ASAAS_WEBHOOK_TOKEN: ${ASAAS_WEBHOOK_TOKEN}
-
-      R2_ACCOUNT_ID: ${R2_ACCOUNT_ID}
-      R2_ACCESS_KEY_ID: ${R2_ACCESS_KEY_ID}
-      R2_SECRET_ACCESS_KEY: ${R2_SECRET_ACCESS_KEY}
-      R2_BUCKET: ${R2_BUCKET}
-      R2_PUBLIC_BASE_URL: ${R2_PUBLIC_BASE_URL}
-    command: ["node", "dist/worker.js"]
+      pgbouncer:
+        condition: service_started
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - app_net
+    # se o worker tiver cmd próprio no package.json, mantenha o padrão do projeto;
+    # aqui estou usando o que normalmente existe:
+    command: ["sh", "-lc", "yarn start:worker"]
 
-  # -----------------------------
-  # Web (Next.js 16) - DEV
-  # -----------------------------
   app:
     build:
       context: .
       dockerfile: src/app/Dockerfile
+    image: codelab-enterprise-app:latest
     container_name: codelab_app
+    env_file:
+      - .env.dev
     depends_on:
       api:
         condition: service_started
-    env_file: .env.dev
-    environment:
-      NODE_ENV: development
-      NEXT_TELEMETRY_DISABLED: "1"
-
-      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY}
-      CLERK_SECRET_KEY: ${CLERK_SECRET_KEY}
-      NEXT_PUBLIC_CLERK_SIGN_IN_URL: ${NEXT_PUBLIC_CLERK_SIGN_IN_URL:-/auth/sign-in}
-      NEXT_PUBLIC_CLERK_SIGN_UP_URL: ${NEXT_PUBLIC_CLERK_SIGN_UP_URL:-/auth/sign-up}
-
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-/api}
-      INTERNAL_API_BASE_URL: ${INTERNAL_API_BASE_URL:-http://api:3001}
-      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost}
-    expose:
-      - "3000"
+      pgbouncer:
+        condition: service_started
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - app_net
+    expose:
+      - "3000"
 
-  # -----------------------------
-  # Nginx (Reverse Proxy) - DEV
-  # -----------------------------
   nginx:
     image: nginx:1.27-alpine
     container_name: codelab_nginx
     depends_on:
-      app:
-        condition: service_started
-      api:
-        condition: service_started
+      - app
+      - api
     ports:
       - "80:80"
-    volumes:
-      - ./infra/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     networks:
       - app_net
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
 
 networks:
   app_net:
-    driver: bridge
 
 volumes:
   pg_data:
