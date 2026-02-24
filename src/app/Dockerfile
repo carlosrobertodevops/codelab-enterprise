@@ -1,3 +1,59 @@
+# # syntax=docker/dockerfile:1.6
+
+# FROM node:22-alpine AS base
+# WORKDIR /app
+
+# RUN apk add --no-cache libc6-compat openssl ca-certificates && update-ca-certificates
+
+# # Node 22 vem com Corepack e geralmente já expõe um shim em /usr/local/bin/yarn.
+# # Em alguns ambientes (DNS/proxy) o Corepack falha ao baixar Yarn de registry.yarnpkg.com.
+# # Para tornar o build determinístico, instalamos Yarn Classic via npm e removemos shims
+# # que poderiam causar conflito (EEXIST).
+# RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+#   && npm config set registry https://registry.npmjs.org/ \
+#   && npm i -g yarn@1.22.22 \
+#   && yarn --version
+
+# # -----------------------------
+# # deps
+# # -----------------------------
+# FROM base AS deps
+# WORKDIR /app
+
+# COPY src/app/package.json src/app/yarn.lock ./
+# RUN yarn install --frozen-lockfile
+
+# # -----------------------------
+# # builder
+# # -----------------------------
+# FROM base AS builder
+# WORKDIR /app
+
+# COPY --from=deps /app/node_modules ./node_modules
+# COPY src/app ./
+
+# RUN yarn prisma:generate
+# RUN yarn build
+
+# # -----------------------------
+# # runner
+# # -----------------------------
+# FROM base AS runner
+# WORKDIR /app
+# ENV NODE_ENV=production
+
+# COPY --from=builder /app/.next ./.next
+# COPY --from=builder /app/public ./public
+# COPY --from=builder /app/package.json ./package.json
+# COPY --from=builder /app/node_modules ./node_modules
+# COPY --from=builder /app/prisma ./prisma
+
+# # Prisma engines (Alpine/musl)
+# COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+
+# EXPOSE 3000
+# CMD ["yarn", "start"]
+
 # syntax=docker/dockerfile:1.6
 
 FROM node:22-alpine AS base
@@ -6,9 +62,8 @@ WORKDIR /app
 RUN apk add --no-cache libc6-compat openssl ca-certificates && update-ca-certificates
 
 # Node 22 vem com Corepack e geralmente já expõe um shim em /usr/local/bin/yarn.
-# Em alguns ambientes (DNS/proxy) o Corepack falha ao baixar Yarn de registry.yarnpkg.com.
-# Para tornar o build determinístico, instalamos Yarn Classic via npm e removemos shims
-# que poderiam causar conflito (EEXIST).
+# Para evitar EAI_AGAIN (corepack baixando yarn) e EEXIST (shim já existe),
+# removemos shims e instalamos Yarn classic via npm.
 RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
   && npm config set registry https://registry.npmjs.org/ \
   && npm i -g yarn@1.22.22 \
@@ -32,7 +87,11 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY src/app ./
 
+# Gera Prisma Client no output customizado:
+# prisma/schema.prisma -> output "../src/generated/prisma"
 RUN yarn prisma:generate
+
+# Build Next
 RUN yarn build
 
 # -----------------------------
@@ -48,7 +107,11 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 
-# Prisma engines (Alpine/musl)
+# ✅ ESSENCIAL: o Prisma Client do APP é gerado em src/generated/prisma
+# Sem isso, o runtime do Next não acha o libquery_engine no caminho esperado.
+COPY --from=builder /app/src/generated ./src/generated
+
+# Prisma engines (Alpine/musl) — mantém também por segurança
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3000
