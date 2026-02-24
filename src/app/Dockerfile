@@ -4,7 +4,15 @@ FROM node:22-alpine AS base
 WORKDIR /app
 
 RUN apk add --no-cache libc6-compat openssl ca-certificates && update-ca-certificates
-RUN corepack enable
+
+# Node 22 vem com Corepack e geralmente já expõe um shim em /usr/local/bin/yarn.
+# Em alguns ambientes (DNS/proxy) o Corepack falha ao baixar Yarn de registry.yarnpkg.com.
+# Para tornar o build determinístico, instalamos Yarn Classic via npm e removemos shims
+# que poderiam causar conflito (EEXIST).
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+  && npm config set registry https://registry.npmjs.org/ \
+  && npm i -g yarn@1.22.22 \
+  && yarn --version
 
 # -----------------------------
 # deps

@@ -6,7 +6,14 @@ WORKDIR /app
 # Alpine: TLS/CA + compat + openssl (evita falhas de download/SSL em prisma/yarn)
 RUN apk add --no-cache libc6-compat openssl ca-certificates && update-ca-certificates
 
-RUN corepack enable
+# Node 22 vem com Corepack e geralmente já expõe um shim em /usr/local/bin/yarn.
+# Em alguns ambientes (DNS/proxy) o Corepack falha ao baixar Yarn de registry.yarnpkg.com.
+# Para tornar o build determinístico, instalamos Yarn Classic via npm e removemos shims
+# que poderiam causar conflito (EEXIST).
+RUN rm -f /usr/local/bin/yarn /usr/local/bin/yarnpkg \
+  && npm config set registry https://registry.npmjs.org/ \
+  && npm i -g yarn@1.22.22 \
+  && yarn --version
 
 # -----------------------------
 # deps
@@ -45,7 +52,7 @@ COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules ./node_modules
 
-# ✅ Prisma engines (necessário no Alpine/musl)
+# Prisma engines (necessário no Alpine/musl)
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 EXPOSE 3001
